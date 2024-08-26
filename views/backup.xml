@@ -1,0 +1,97 @@
+from odoo import api, fields, models
+
+class ProductPricelistItem(models.Model):
+    _inherit = "product.pricelist.item"
+
+    price_tier_ids = fields.One2many(
+        "tier.list",
+        "price_list_id",
+        string="Tiers",
+    )
+    compute_price = fields.Selection(
+        selection=[
+            ('fixed', "Fixed Price"),
+            ('percentage', "Discount"),
+            ('formula', "Formula"),
+            ('tiered', "Tiered")
+        ],
+        index=True, default='fixed', required=True
+    )
+    price_list_product_id = fields.Many2one("product.product", string="Product Variant")
+
+
+class TierList(models.Model):
+    _name = "tier.list"
+    _description = "Pricing Tiers"
+
+    product_id = fields.Many2one("product.product", string="Product")
+    price_list_id = fields.Many2one("product.pricelist.item", string="Price List Item")
+    tier_id = fields.Integer(string="Tier ID", required=True)
+    tier_quantity_from = fields.Float(string="Quantity From", required=True)
+    tier_quantity_to = fields.Float(string="Quantity To", required=True)
+    list_price = fields.Float(string="List Price", required=True)
+
+
+class SaleOrderLine(models.Model):
+    _inherit = 'sale.order.line'
+
+    @api.onchange('product_id', 'product_uom_qty', 'order_id.pricelist_id')
+    def _onchange_product_id_tier_pricing(self):
+        for line in self:
+            pricelist = line.order_id.pricelist_id
+            if pricelist:
+                pricelist_item = self.env['product.pricelist.item'].search([
+                    ('pricelist_id', '=', pricelist.id),
+                    ('compute_price', '=', 'tiered'),
+                    ('price_list_product_id', '=', line.product_id.id)
+                ], limit=1)
+
+                if pricelist_item:
+                    for tier in pricelist_item.price_tier_ids:
+                        if tier.tier_quantity_from <= line.product_uom_qty <= tier.tier_quantity_to:
+                            line.price_unit = tier.list_price
+                            break
+
+<odoo>
+    <data>
+    <record id="custom_product_pricelist_form_view" model="ir.ui.view">
+        <field name="name">custom.product.pricelist.form.view</field>
+        <field name="model">product.pricelist.item</field>
+        <field name="inherit_id" ref="product.product_pricelist_item_form_view"/>
+        <field name="arch" type="xml">
+           <xpath expr="//group[3]" position="attributes">
+                    <attribute name="invisible">compute_price == 'tiered'</attribute>
+                    <attribute name="groups">product.group_sale_pricelist</attribute>
+                </xpath>
+                <xpath expr="//group[3]" position="after">
+                    <group id="price_list_product_id_id">
+                        <field name="price_list_product_id"
+                               invisible="compute_price != 'tiered'"
+                               required="compute_price == 'tiered'"
+                               groups="product.group_sale_pricelist"
+                               class="oe_inline"/>
+                    </group>
+                </xpath>
+                <xpath expr="//group[@id='price_list_product_id_id']" position="after">
+                    <group id="price_tire_ids_id">
+                        <field name="price_tier_ids"
+                               invisible="compute_price != 'tiered'"
+                               required="compute_price == 'tiered'"
+                               groups="product.group_sale_pricelist"
+                               class="oe_inline">
+                            <tree editable="bottom" class="oe_inline">
+                                <field name="tier_id" string="Tier ID"/>
+                                <field name="tier_quantity_from" string="Tier From"/>
+                                <field name="tier_quantity_to" string="Tier To"/>
+                                <field name="list_price" string="List Price" widget="monetary"/>
+                            </tree>
+                        </field>
+                    </group>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>
+
+
+

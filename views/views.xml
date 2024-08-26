@@ -1,0 +1,45 @@
+<odoo>
+    <data>
+        <record id="custom_product_pricelist_form_view" model="ir.ui.view">
+            <field name="name">custom.product.pricelist.form.view</field>
+            <field name="model">product.pricelist.item</field>
+            <field name="inherit_id" ref="product.product_pricelist_item_form_view"/>
+            <field name="arch" type="xml">
+                <!-- Modify existing group for visibility based on 'tiered' compute_price -->
+                <xpath expr="//group[3]" position="attributes">
+                    <attribute name="invisible">compute_price == 'tiered'</attribute>
+                    <attribute name="groups">product.group_sale_pricelist</attribute>
+                </xpath>
+                
+                <!-- Add the 'product_variant_id' field for tiered pricing -->
+                <xpath expr="//group[3]" position="after">
+                    <group id="product_variant_id_group">
+                        <field name="product_variant_id"
+                               invisible="compute_price != 'tiered'"
+                               required="compute_price == 'tiered'"
+                               groups="product.group_sale_pricelist"
+                               class="oe_inline"/>
+                    </group>
+                </xpath>
+
+                <!-- Add the tiered pricing One2many field -->
+                <xpath expr="//group[@id='product_variant_id_group']" position="after">
+                    <group id="tier_ids_group">
+                        <field name="tier_ids"
+                               invisible="compute_price != 'tiered'"
+                               required="compute_price == 'tiered'"
+                               groups="product.group_sale_pricelist"
+                               class="oe_inline">
+                            <tree editable="bottom" class="oe_inline">
+                                <field name="tier_number" string="Tier Number"/>
+                                <field name="quantity_from" string="Quantity From"/>
+                                <field name="quantity_to" string="Quantity To"/>
+                                <field name="list_price" string="List Price" widget="monetary"/>
+                            </tree>
+                        </field>
+                    </group>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>
